@@ -30,8 +30,14 @@ jobs:
       - name: Locate zip + verify prefix
         if: always()
         run: |
-          echo "== 当前目录 =="; pwd
-          echo "== 找 zip =="; find . -maxdepth 3 -name 'bootstrap-*.zip' -printf '%p %s bytes\n' || true
+          echo "== 当前目录 =="; pwd; ls -la | head -20
+          echo "== 容器内找 zip =="
+          sudo docker exec termux-package-builder find / -maxdepth 6 -name 'bootstrap-aarch64*.zip' -printf '%p %s\n' 2>/dev/null || true
+          echo "== 宿主机找 zip =="
+          sudo find / -xdev -name 'bootstrap-aarch64*.zip' -printf '%p %s\n' 2>/dev/null | head -5 || true
+          echo "== docker cp 兜底 =="
+          sudo docker cp termux-package-builder:/home/builder/termux-packages/bootstrap-aarch64.zip . 2>/dev/null || echo "(docker cp 失败)"
+          ls -la *.zip 2>/dev/null || echo "(宿主机根目录仍无 zip)"
           ZIP=$(find . -maxdepth 3 -name 'bootstrap-aarch64*.zip' | head -1)
           if [ -z "$ZIP" ]; then echo "!! 没找到 bootstrap zip"; exit 0; fi
           echo "ZIP=$ZIP"

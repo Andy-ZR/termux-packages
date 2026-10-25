@@ -1,0 +1,40 @@
+name: Volute bootstrap (aarch64)
+
+# 只为 Volute fork 生成新前缀（com.volute.app）的 bootstrap 归档。
+# 用 build-bootstraps.sh 直接从本仓库源码构建，不需要先发布 apt 仓库。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get purge -y '^temurin-.*' '^dotnet-.*' '^ghc-.*' || true
+          df -h /
+
+      - name: Build bootstrap (aarch64)
+        run: |
+          ./scripts/run-docker.sh ./scripts/build-bootstraps.sh --architectures aarch64 2>&1 | tee build.log
+
+      - name: Show prefix in log
+        if: always()
+        run: grep -m5 -E "com\.volute\.app|TERMUX_PREFIX|Prefix" build.log || true
+
+      - name: Upload bootstrap zip
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-aarch64-volute
+          path: "*.zip"
+          if-no-files-found: warn

@@ -1,0 +1,46 @@
+name: Mount probe
+
+# 3 分钟探针：验证 run-docker.sh 的 bind mount 是否真的把容器内
+# /home/builder/termux-packages 映射到宿主机工作区。
+# 结论写进 step summary（公开可读），并用退出码表达（失败=挂载不通）。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Container writes a file into the mount
+        run: |
+          ./scripts/run-docker.sh bash -c '
+            echo "container pwd: $(pwd)"
+            echo "mount content:"; ls -la /home/builder/termux-packages | head -5
+            echo hello-from-container > /home/builder/termux-packages/PROBE.txt
+            echo "wrote: $(ls -la /home/builder/termux-packages/PROBE.txt)"
+          '
+
+      - name: Host must see it
+        id: check
+        run: |
+          if [ -f PROBE.txt ]; then
+            echo "mount: OK $(cat PROBE.txt)"
+            echo "mount: **OK** — 容器写入可见于工作区" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "mount: FAILED — 工作区看不到 PROBE.txt"
+            echo "mount: **FAILED** — 容器写入不可见于工作区" >> $GITHUB_STEP_SUMMARY
+            echo "workspace root:"; ls -la | head -10
+            exit 1
+          fi
+
+      - name: Docker mount details
+        if: always()
+        run: |
+          sudo docker inspect termux-package-builder --format '{{json .Mounts}}' | head -c 800 >> $GITHUB_STEP_SUMMARY || true
+          echo >> $GITHUB_STEP_SUMMARY
+          sudo docker exec termux-package-builder ls -la /home/builder/termux-packages | head -5 >> $GITHUB_STEP_SUMMARY || true
